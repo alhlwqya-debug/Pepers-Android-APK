@@ -2,6 +2,9 @@ build/
 .platform/
 .gradle/
 local.properties
+build/
+app/build/
+local.properties
 *.apk
 *.aab
 *.jks
