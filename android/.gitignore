@@ -2,6 +2,8 @@ build/
 .platform/
 .gradle/
 local.properties
+.android-sdk/
+.commandlinetools-linux.zip
 build/
 app/build/
 local.properties

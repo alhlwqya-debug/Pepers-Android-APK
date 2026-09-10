@@ -7,4 +7,4 @@ The imported native Android source uses `module.toml` rather than a complete Gra
 
 **Why:** The Replit workspace does not provide Android SDK tooling by default, and AGP fails hard on duplicate resource names.
 
-**How to apply:** Preserve the generated Gradle setup and use Android SDK platform/build-tools 34 for subsequent builds; keep the installable artifact debug-signed unless the user supplies a production signing workflow.
+**How to apply:** Preserve the generated Gradle setup and use Android SDK platform/build-tools 34 for subsequent builds. CI must write `local.properties` from `ANDROID_HOME` before invoking Gradle. Keep the installable artifact debug-signed unless the user supplies a production signing workflow.
