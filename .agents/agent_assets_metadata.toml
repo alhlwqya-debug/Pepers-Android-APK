@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "DItQbH5pXGaQlkVxTzvP7"
+uri = "file://android/app/build/outputs/apk/debug/app-debug.apk"
+type = "unspecified"
+title = "Pepers APK — نسخة قابلة للتثبيت"
+description = "نسخة Android موقّعة للتجربة من تطبيق حساب الخياطين، مبنية من مستودع GitHub. package: com.add.pepers، minSdk 21، targetSdk 34."
+logical_id = "252f577a-cc04-4629-b603-939ae6cabc38"
+content_hash = "sha256:7a74a0280875de92e6a65fdf1a893935e2b215388fee8e4263c6b99751655781"
+size = 9152795
+mtime_ms = 1789058093326
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:fc75f940-f96d-4bd3-b4a5-41bfc63e0849/252f577a-cc04-4629-b603-939ae6cabc38/2b793bc6-1446-4461-a4b5-a44d877d0121"
+storage_version_token = "1789058103246322"
+content_type = "application/octet-stream"

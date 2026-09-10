@@ -1,0 +1,1 @@
+- [Android build setup](android-build.md) — native source needs Gradle/SDK bootstrapping and one launcher color definition before APK builds.
