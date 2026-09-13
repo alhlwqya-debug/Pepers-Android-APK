@@ -26,10 +26,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
-    companion object {
-        private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 7001
-    }
-
+    companion object { private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 7001 }
     private var authChecked by mutableStateOf(false)
     private var authenticated by mutableStateOf(false)
     private var unlocked by mutableStateOf(true)
@@ -41,32 +38,25 @@ class MainActivity : ComponentActivity() {
         CloudSyncScheduler.syncNow(applicationContext)
         CoroutineScope(Dispatchers.IO).launch { createInternalAutoBackup(applicationContext) }
         handleOAuthIntent(intent)
-
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
-            androidx.core.app.ActivityCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
-        ) {
+            androidx.core.app.ActivityCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), NOTIFICATION_PERMISSION_REQUEST_CODE)
         }
-
         WindowCompat.setDecorFitsSystemWindows(window, true)
         setContent {
             MaterialTheme {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                     Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFFFFF8FF)) {
-                        if (!authChecked) {
-                            LaunchedAuthCheck()
-                        } else if (!authenticated) {
+                        if (!authChecked) LaunchedAuthCheck()
+                        else if (!authenticated) {
                             AuthScreen {
                                 authenticated = true
                                 unlocked = !hasAppPin(this@MainActivity)
                                 CloudSyncScheduler.syncNow(applicationContext)
                             }
-                        } else if (unlocked) {
-                            WorkLogSheet()
-                        } else {
-                            Box(Modifier.fillMaxSize().background(Color(0xFFFFF8FF))) {
-                                AppLockScreen(this@MainActivity) { unlocked = true }
-                            }
+                        } else if (unlocked) WorkLogSheet()
+                        else Box(Modifier.fillMaxSize().background(Color(0xFFFFF8FF))) {
+                            AppLockScreen(this@MainActivity) { unlocked = true }
                         }
                     }
                 }
@@ -74,7 +64,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         handleOAuthIntent(intent)
