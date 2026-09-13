@@ -65,12 +65,18 @@ jobs:
           UNSIGNED="app/build/outputs/apk/release/app-release-unsigned.apk"
           ALIGNED="app/build/outputs/apk/release/app-release-test-aligned.apk"
           SIGNED="app/build/outputs/apk/release/pepers-1.1.0-installable-test.apk"
+          KEY_DIR="$RUNNER_TEMP/pepers-test-signing"
+          KEY="$KEY_DIR/test-key.pem"
+          CERT="$KEY_DIR/test-cert.pem"
+
+          mkdir -p "$KEY_DIR"
+          openssl genrsa -out "$KEY" 2048
+          openssl req -new -x509 -key "$KEY" -out "$CERT" -days 7 -subj "/CN=Pepers Test"
+
           "$BUILD_TOOLS/zipalign" -p -f 4 "$UNSIGNED" "$ALIGNED"
           "$BUILD_TOOLS/apksigner" sign \
-            --ks "$HOME/.android/debug.keystore" \
-            --ks-key-alias androiddebugkey \
-            --ks-pass pass:android \
-            --key-pass pass:android \
+            --key "$KEY" \
+            --cert "$CERT" \
             --out "$SIGNED" \
             "$ALIGNED"
           "$BUILD_TOOLS/apksigner" verify --verbose "$SIGNED"
