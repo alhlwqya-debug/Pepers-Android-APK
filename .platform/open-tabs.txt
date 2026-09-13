@@ -1,0 +1,4 @@
+#v2
+1
+/storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/Pepers-Android-APK/.agents/memory/android-build.md	0	0	text
+/storage/emulated/0/Android/data/com.tyron.code/files/codeassist/projects/Pepers-Android-APK/android/app/module.toml	0	0	text

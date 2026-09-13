@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "projects": [
+    {
+      "id": "Pepers-Android-APK",
+      "name": "Pepers-Android-APK",
+      "root": "",
+      "buildSystem": "native",
+      "settings": {},
+      "modules": [],
+      "libraries": []
+    }
+  ]
+}
