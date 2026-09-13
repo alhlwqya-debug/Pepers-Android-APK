@@ -3,11 +3,19 @@ package com.add.pepers
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 
 /** Lightweight Supabase Auth client using the public publishable key. */
 internal object SupabaseAuth {
@@ -16,6 +24,8 @@ internal object SupabaseAuth {
     private const val SUPABASE_PUBLISHABLE_KEY = "sb_publishable_5Y18fNgiYV2tRPyJH5_Ojg_lhf-Ww47"
     private const val PREFS = "add_paper_user"
     private const val SESSION = "supabase_session"
+    private const val SESSION_KEY_ALIAS = "PepersSupabaseSessionKey"
+    private const val ENCRYPTED_PREFIX = "v1:"
 
     data class Session(
         val accessToken: String,
@@ -28,8 +38,12 @@ internal object SupabaseAuth {
 
     fun currentSession(context: Context): Session? {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(SESSION, null) ?: return null
+        val json = runCatching {
+            if (raw.startsWith(ENCRYPTED_PREFIX)) decrypt(raw.removePrefix(ENCRYPTED_PREFIX))
+            else raw
+        }.getOrNull() ?: return null
         return runCatching {
-            val j = JSONObject(raw)
+            val j = JSONObject(json)
             Session(j.getString("access_token"), j.optString("refresh_token"), j.getString("user_id"), j.optLong("expires_at", 0L))
         }.getOrNull()
     }
@@ -125,7 +139,10 @@ internal object SupabaseAuth {
 
     fun ensureSession(context: Context): Session? {
         val s = currentSession(context) ?: return null
-        if (s.expiresAt == 0L || s.expiresAt > System.currentTimeMillis() / 1000L + 60) return s
+        if (s.expiresAt == 0L || s.expiresAt > System.currentTimeMillis() / 1000L + 60) {
+            migrateLegacySessionIfNeeded(context, s)
+            return s
+        }
         return refresh(context).getOrNull()
     }
 
@@ -162,13 +179,61 @@ internal object SupabaseAuth {
     }
 
     private fun saveSession(context: Context, session: Session) {
+        val json = JSONObject().apply {
+            put("access_token", session.accessToken)
+            put("refresh_token", session.refreshToken)
+            put("user_id", session.userId)
+            put("expires_at", session.expiresAt)
+        }.toString()
+        val encrypted = runCatching { ENCRYPTED_PREFIX + encrypt(json) }.getOrElse { error("تعذر حماية جلسة الدخول") }
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString(SESSION, JSONObject().apply {
-                put("access_token", session.accessToken)
-                put("refresh_token", session.refreshToken)
-                put("user_id", session.userId)
-                put("expires_at", session.expiresAt)
-            }.toString()).apply()
+            .putString(SESSION, encrypted)
+            .apply()
+    }
+
+    private fun migrateLegacySessionIfNeeded(context: Context, session: Session) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val raw = prefs.getString(SESSION, null) ?: return
+        if (!raw.startsWith(ENCRYPTED_PREFIX)) saveSession(context, session)
+    }
+
+    private fun getOrCreateSessionKey(): SecretKey {
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        val existing = keyStore.getKey(SESSION_KEY_ALIAS, null) as? SecretKey
+        if (existing != null) return existing
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        generator.init(
+            KeyGenParameterSpec.Builder(
+                SESSION_KEY_ALIAS,
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+            )
+                .setKeySize(256)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .build()
+        )
+        return generator.generateKey()
+    }
+
+    private fun encrypt(value: String): String {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSessionKey())
+        val iv = cipher.iv
+        val ciphertext = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
+        val packed = ByteArray(iv.size + ciphertext.size)
+        System.arraycopy(iv, 0, packed, 0, iv.size)
+        System.arraycopy(ciphertext, 0, packed, iv.size, ciphertext.size)
+        return Base64.encodeToString(packed, Base64.NO_WRAP)
+    }
+
+    private fun decrypt(encoded: String): String {
+        val packed = Base64.decode(encoded, Base64.NO_WRAP)
+        require(packed.size > 12) { "جلسة غير صالحة" }
+        val iv = packed.copyOfRange(0, 12)
+        val ciphertext = packed.copyOfRange(12, packed.size)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, getOrCreateSessionKey(), GCMParameterSpec(128, iv))
+        return String(cipher.doFinal(ciphertext), Charsets.UTF_8)
     }
 
     private fun saveProfile(context: Context, profile: Profile) {
