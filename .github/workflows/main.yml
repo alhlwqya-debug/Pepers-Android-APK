@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Pepers Android
 
 on:
   push:
@@ -11,14 +11,18 @@ permissions:
 
 jobs:
   build-apk:
-    name: Build installable APK
+    name: Build Android APK and AAB
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: android
 
     steps:
       - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -37,8 +41,8 @@ jobs:
         run: |
           sdkmanager --install \
             "platform-tools" \
-            "platforms;android-34" \
-            "build-tools;34.0.0"
+            "platforms;android-36" \
+            "build-tools;36.0.0"
 
       - name: Configure Android SDK path
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties
@@ -46,16 +50,23 @@ jobs:
       - name: Build debug APK
         run: ./gradlew --no-daemon assembleDebug
 
-      - name: Verify APK
-        run: |
-          test -f app/build/outputs/apk/debug/app-debug.apk
-          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging \
-            app/build/outputs/apk/debug/app-debug.apk | head -n 12
+      - name: Build release APK
+        run: ./gradlew --no-daemon assembleRelease
 
-      - name: Upload APK
+      - name: Build release AAB
+        run: ./gradlew --no-daemon bundleRelease
+
+      - name: Verify release outputs
+        run: |
+          test -f app/build/outputs/apk/release/app-release-unsigned.apk
+          test -f app/build/outputs/bundle/release/app-release.aab
+
+      - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: pepers-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: pepers-1.1.0-release
+          path: |
+            android/app/build/outputs/apk/release/app-release-unsigned.apk
+            android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 14
