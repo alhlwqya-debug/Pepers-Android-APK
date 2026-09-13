@@ -20,10 +20,10 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -47,6 +47,9 @@ jobs:
       - name: Configure Android SDK path
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties
 
+      - name: Verify Gradle project
+        run: ./gradlew --no-daemon tasks --all > /dev/null
+
       - name: Build debug APK
         run: ./gradlew --no-daemon assembleDebug
 
@@ -58,8 +61,8 @@ jobs:
 
       - name: Verify release outputs
         run: |
-          test -f app/build/outputs/apk/release/app-release-unsigned.apk
-          test -f app/build/outputs/bundle/release/app-release.aab
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+          test -s app/build/outputs/bundle/release/app-release.aab
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
