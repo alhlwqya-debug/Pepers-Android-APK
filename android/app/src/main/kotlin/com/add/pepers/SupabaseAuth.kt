@@ -1,7 +1,8 @@
 package com.add.pepers
 
 import android.content.Context
-import android.util.Base64
+import android.content.Intent
+import android.net.Uri
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -15,7 +16,6 @@ internal object SupabaseAuth {
     private const val SUPABASE_PUBLISHABLE_KEY = "sb_publishable_5Y18fNgiYV2tRPyJH5_Ojg_lhf-Ww47"
     private const val PREFS = "add_paper_user"
     private const val SESSION = "supabase_session"
-    private const val PROFILE = "supabase_profile"
 
     data class Session(
         val accessToken: String,
@@ -73,6 +73,41 @@ internal object SupabaseAuth {
         val phone = metadata?.optString("phone", "") ?: ""
         val mail = user?.optString("email", email.trim()) ?: email.trim()
         saveProfile(context, Profile(name, phone, mail))
+        fetchAndMergeProfile(context, session)
+        session
+    }
+
+    fun beginGoogleLogin(context: Context) {
+        val redirect = "pepers://auth/callback"
+        val url = SUPABASE_URL + "/auth/v1/authorize?provider=google&redirect_to=" + Uri.encode(redirect)
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
+    }
+
+    /** Handles the implicit OAuth callback returned by Supabase in the URI fragment. */
+    fun handleOAuthCallback(context: Context, uri: Uri): Result<Session> = runCatching {
+        val fragment = uri.fragment.orEmpty()
+        val values = fragment.split('&').mapNotNull { part ->
+            val i = part.indexOf('=')
+            if (i <= 0) null else Uri.decode(part.substring(0, i)) to Uri.decode(part.substring(i + 1))
+        }.toMap()
+        val access = values["access_token"].orEmpty()
+        val refresh = values["refresh_token"].orEmpty()
+        if (access.isBlank()) error(values["error_description"].orEmpty().ifBlank { "فشل تسجيل الدخول باستخدام Google" })
+        val userResponse = request("GET", "/auth/v1/user", null, access)
+        if (userResponse.code !in 200..299) error(authError(userResponse.body))
+        val user = JSONObject(userResponse.body)
+        val userId = user.optString("id").takeIf { it.isNotBlank() } ?: error("تعذر تحديد حساب Google")
+        val expiresAt = values["expires_at"]?.toLongOrNull() ?: (System.currentTimeMillis() / 1000L + (values["expires_in"]?.toLongOrNull() ?: 3600L))
+        val session = Session(access, refresh, userId, expiresAt)
+        saveSession(context, session)
+        val metadata = user.optJSONObject("user_metadata")
+        val name = metadata?.optString("full_name")?.ifBlank { metadata.optString("name") }.orEmpty()
+        val email = user.optString("email", "")
+        val phone = metadata?.optString("phone", "").orEmpty()
+        saveProfile(context, Profile(name, phone, email))
+        upsertProfile(session, name, phone, email)
         fetchAndMergeProfile(context, session)
         session
     }
