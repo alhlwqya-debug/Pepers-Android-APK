@@ -95,6 +95,13 @@ internal fun AuthScreen(onAuthenticated: () -> Unit) {
         Button(onClick = { submit() }, enabled = !busy, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Green)) {
             Text(if (busy) "جارٍ المعالجة..." else if (register) "إنشاء الحساب" else "دخول")
         }
+        Spacer(Modifier.height(8.dp))
+        Button(
+            onClick = { SupabaseAuth.beginGoogleLogin(context) },
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4))
+        ) { Text("المتابعة باستخدام Google") }
         TextButton(enabled = !busy, onClick = { register = !register; error = "" }) {
             Text(if (register) "لدي حساب بالفعل — تسجيل الدخول" else "ليس لدي حساب — إنشاء حساب")
         }
