@@ -38,6 +38,7 @@ internal class SupabaseCloudSync(private val context: Context) : CloudSyncProvid
         private val syncMutex = Mutex()
         private const val DATABASE_NAME = "add_paper.db"
         private const val PROFILE_IMAGE_NAME = "profile_image.jpg"
+        private const val CLOCK_SKEW_TOLERANCE_MS = 5000L
     }
 
     override suspend fun uploadBackup(uri: Uri): Result<String> = runCatching {
@@ -93,10 +94,7 @@ internal class SupabaseCloudSync(private val context: Context) : CloudSyncProvid
         )
     }
 
-    /**
-     * Automatic sync used by startup and WorkManager.
-     * A single process-wide mutex prevents two workers from restoring/uploading at once.
-     */
+    /** Automatic sync used by startup and WorkManager. */
     suspend fun syncAutomatically(): Result<String> = syncMutex.withLock {
         runCatching {
             val session = SupabaseAuth.ensureSession(context) ?: return@runCatching "غير مسجل الدخول"
@@ -144,8 +142,7 @@ internal class SupabaseCloudSync(private val context: Context) : CloudSyncProvid
         val dbFile = context.getDatabasePath(DATABASE_NAME)
         if (!dbFile.exists()) return LocalDatabaseState(false, 0L)
 
-        // Open, checkpoint and close before copying the file. This prevents an active
-        // SQLite connection/WAL from being copied as if it were the complete database.
+        // Checkpoint and close SQLite before copying the main database file.
         Database(context).use { db ->
             db.optimizeDatabase()
             try {
@@ -153,7 +150,7 @@ internal class SupabaseCloudSync(private val context: Context) : CloudSyncProvid
                     while (cursor.moveToNext()) Unit
                 }
             } catch (_: Exception) {
-                // Checkpoint is best effort on devices where WAL is disabled.
+                // Best effort when WAL is disabled or unavailable.
             }
         }
 
@@ -235,8 +232,8 @@ internal class SupabaseCloudSync(private val context: Context) : CloudSyncProvid
             val source = File(tempDir, "database/$DATABASE_NAME")
             if (!source.exists()) error("قاعدة البيانات غير موجودة داخل النسخة")
 
-            // No Database instance is open here. Replace the main database and remove
-            // stale WAL/SHM sidecars so SQLite cannot replay old local transactions.
+            // No Database instance is open here. Remove stale WAL/SHM files before
+            // the restored database can be opened again.
             val databaseDir = File(context.dataDir, "databases")
             databaseDir.mkdirs()
             val target = File(databaseDir, DATABASE_NAME)
@@ -259,10 +256,9 @@ internal class SupabaseCloudSync(private val context: Context) : CloudSyncProvid
     }
 
     private fun fetchRemoteMetadata(accessToken: String, userId: String): JSONObject? {
-        val encodedUser = userId.replace("'", "''")
         val response = requestBytes(
             "GET",
-            "/rest/v1/pepers_cloud_backups?user_id=eq.$encodedUser&select=user_id,object_path,updated_at&limit=1",
+            "/rest/v1/pepers_cloud_backups?user_id=eq.$userId&select=user_id,object_path,updated_at&limit=1",
             null,
             accessToken,
             null
@@ -287,11 +283,23 @@ internal class SupabaseCloudSync(private val context: Context) : CloudSyncProvid
         if (response.code !in 200..299) error("تعذر حفظ حالة المزامنة")
     }
 
-    private fun parseTimestamp(value: String): Long? = runCatching {
+    private fun parseTimestamp(value: String): Long? {
         val normalized = value.trim()
-        if (normalized.isBlank()) return@runCatching null
-        javax.xml.bind.DatatypeConverter.parseDateTime(normalized).timeInMillis
-    }.getOrNull()
+        if (normalized.isBlank()) return null
+        val formats = listOf(
+            "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+            "yyyy-MM-dd'T'HH:mm:ssXXX",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+            "yyyy-MM-dd'T'HH:mm:ssZ"
+        )
+        for (pattern in formats) {
+            val parsed = runCatching {
+                SimpleDateFormat(pattern, Locale.US).apply { isLenient = false }.parse(normalized)
+            }.getOrNull()
+            if (parsed != null) return parsed.time
+        }
+        return null
+    }
 
     private data class ByteResponse(val code: Int, val body: String, val bytes: ByteArray)
 
@@ -339,8 +347,4 @@ internal class SupabaseCloudSync(private val context: Context) : CloudSyncProvid
         "application/json",
         mapOf("Prefer" to prefer)
     )
-
-    private companion object {
-        const val CLOCK_SKEW_TOLERANCE_MS = 5000L
-    }
 }
