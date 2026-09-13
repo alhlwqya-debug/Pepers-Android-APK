@@ -45,9 +45,11 @@ internal object CloudSyncScheduler {
         val request = OneTimeWorkRequestBuilder<CloudSyncWorker>()
             .setConstraints(constraints)
             .build()
+        // KEEP prevents startup/auth callbacks from repeatedly cancelling a sync
+        // that is already running or waiting for the network.
         WorkManager.getInstance(context).enqueueUniqueWork(
             UNIQUE_ONE_TIME,
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.KEEP,
             request
         )
     }
