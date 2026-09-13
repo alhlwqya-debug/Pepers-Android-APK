@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.view.WindowCompat
+import com.add.pepers.cloud.CloudSyncScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -36,6 +37,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WorkReminderScheduler.schedule(applicationContext)
+        CloudSyncScheduler.schedule(applicationContext)
+        CloudSyncScheduler.syncNow(applicationContext)
         CoroutineScope(Dispatchers.IO).launch { createInternalAutoBackup(applicationContext) }
         handleOAuthIntent(intent)
 
@@ -53,7 +56,11 @@ class MainActivity : ComponentActivity() {
                         if (!authChecked) {
                             LaunchedAuthCheck()
                         } else if (!authenticated) {
-                            AuthScreen { authenticated = true; unlocked = !hasAppPin(this@MainActivity) }
+                            AuthScreen {
+                                authenticated = true
+                                unlocked = !hasAppPin(this@MainActivity)
+                                CloudSyncScheduler.syncNow(applicationContext)
+                            }
                         } else if (unlocked) {
                             WorkLogSheet()
                         } else {
@@ -83,6 +90,7 @@ class MainActivity : ComponentActivity() {
                     authenticated = true
                     unlocked = !hasAppPin(this@MainActivity)
                     authChecked = true
+                    CloudSyncScheduler.syncNow(applicationContext)
                 }.onFailure {
                     Toast.makeText(this@MainActivity, it.message ?: "فشل تسجيل الدخول باستخدام Google", Toast.LENGTH_LONG).show()
                     authChecked = true
@@ -99,6 +107,7 @@ class MainActivity : ComponentActivity() {
             authenticated = result != null || local.name.isNotBlank()
             unlocked = !hasAppPin(this@MainActivity)
             authChecked = true
+            if (result != null) CloudSyncScheduler.syncNow(this@MainActivity)
         }
     }
 }
