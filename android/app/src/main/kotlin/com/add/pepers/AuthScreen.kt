@@ -1,6 +1,5 @@
 package com.add.pepers
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,7 +16,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,7 +28,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -52,7 +52,7 @@ internal fun AuthScreen(onAuthenticated: () -> Unit) {
         if (register && password != confirmPassword) { error = "كلمتا المرور غير متطابقتين"; return }
         if (password.length < 6) { error = "كلمة المرور يجب أن تكون 6 أحرف على الأقل"; return }
         busy = true
-        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(Dispatchers.IO).launch {
             val result = if (register) SupabaseAuth.signUp(context, name, phone, email, password)
             else SupabaseAuth.signIn(context, email, password)
             withContext(Dispatchers.Main) {
